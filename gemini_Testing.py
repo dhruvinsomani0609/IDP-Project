@@ -43,12 +43,16 @@ def draw_boxes_on_image(image, json_response):
         if box and len(box) == 4:
             # Normalize 0-1000 coordinates to actual pixel dimensions
             ymin, xmin, ymax, xmax = box
-            
+
+            # Ensure correct order
+            ymin, ymax = min(ymin, ymax), max(ymin, ymax)
+            xmin, xmax = min(xmin, xmax), max(xmin, xmax)
+
             x1 = (xmin / 1000) * width
             y1 = (ymin / 1000) * height
             x2 = (xmax / 1000) * width
             y2 = (ymax / 1000) * height
-            
+
             # Draw Red Rectangle (Outline)
             draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
             
