@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: Asynchronous Translation Service API
+  version: 1.0.0
+  description: |
+    A high-throughput, asynchronous API for translating raw text or pre-uploaded documents. 
+    
+    **Key Architectural Flows:**
+    1. **Job Initiation:** Clients submit a job via `POST /translate`. [cite_start]The payload is polymorphic: it accepts either raw text or a command to process pending files[cite: 22].
+    2. **Credit Validation:** The system validates credit balances before queuing. [cite_start]Insufficient funds return a `402 Payment Required`[cite: 27].
+    3. **Asynchronous Processing:** Valid jobs return `202 Accepted` immediately. [cite_start]Processing occurs in the background via SQS and AWS Translate[cite: 28, 37].
+    4. [cite_start]**Completion:** Status updates are available via polling or webhooks[cite: 43].
+  contact:
+    name: API Support
+    email: support@translationservice.com
+
+servers:
+  - url: https://api.translationservice.com/v1
+    description: Production Server
+
+tags:
+  - name: Translation
+    description: Operations related to managing translation jobs and configurations.
+
+paths:
+  /translate:
+    post:
+      summary: Initiate an asynchronous translation job
+      description: |
+        Triggers a new translation job. This endpoint handles polymorphic input:
+        1. **Raw Text:** Direct text submission within the payload[cite: 23].
+        2. **Batch Files:** A flag to process files previously uploaded to the "Pending" state[cite: 24].
+        
+        [cite_start]**Note:** The `tag_id` is required to determine Source/Target languages and Glossary configuration[cite: 25].
+      tags:
+        - Translation
+      operationId: createTranslationJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationRequest'
+            examples:
+              text_mode:
+                summary: Scenario A - Raw Text
+                value:
+                  tag_id: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                  text_content: "Hello, world. This is a raw text translation."
+                  webhook_url: "https://client.com/hooks/translation"
+              file_mode:
+                summary: Scenario B - Process Pending Files
+                value:
+                  tag_id: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                  process_pending: true
+                  webhook_url: "https://client.com/hooks/translation"
+      responses:
+        '202':
+          description: |
+            Accepted. The job has been validated, credits deducted (estimated), and queued for background processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAcceptedResponse'
+        '400':
+          description: Validation Error (e.g., Invalid tag_id or malformed payload).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: |
+            Payment Required. The user does not have enough credits to initiate this job[cite: 27].
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized. Missing or invalid API Key.
+
+    get:
+      summary: List all translation jobs
+      description: Retrieve a paginated list of translation jobs associated with the account.
+      tags:
+        - Translation
+      operationId: listTranslationJobs
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination.
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of items per page.
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: A paginated list of jobs.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JobDetails'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          description: Unauthorized.
+
+  /translate/{jobId}:
+    get:
+      summary: Get job status and results
+      description: |
+        Poll this endpoint to check if a job is `COMPLETED`. If finished, the response includes the result download link or translated text[cite: 41].
+      tags:
+        - Translation
+      operationId: getTranslationJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          description: The unique identifier of the job.
+          schema:
+            type: string
+            format: uuid
+            example: "999-job-id-uuid"
+      responses:
+        '200':
+          description: Job details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetails'
+        '404':
+          description: Job ID not found.
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Standard API Key authentication.
+
+  schemas:
+    # -----------------------------------------------------
+    # Request Schemas (Polymorphism using oneOf)
+    # -----------------------------------------------------
+    TranslationRequest:
+      description: Input payload. [cite_start]Must provide `tag_id` and EITHER `text_content` OR `process_pending`[cite: 22].
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/TextRequest'
+        - $ref: '#/components/schemas/FileBatchRequest'
+      discriminator:
+        propertyName: request_type 
+        # Note: Implicit detection based on properties is also valid in JSON Schema validation logic used here.
+
+    BaseTranslationRequest:
+      type: object
+      required:
+        - tag_id
+      properties:
+        tag_id:
+          type: string
+          format: uuid
+          [cite_start]description: ID referencing the configuration container (Source/Target/Glossary)[cite: 25].
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        webhook_url:
+          type: string
+          format: uri
+          [cite_start]description: Optional URL to receive a POST request upon completion[cite: 43].
+          example: "https://api.client.com/webhooks/translation-result"
+
+    TextRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseTranslationRequest'
+        - type: object
+          required:
+            - text_content
+          properties:
+            text_content:
+              type: string
+              [cite_start]description: Raw text to be translated[cite: 23].
+              example: "The quick brown fox jumps over the lazy dog."
+
+    FileBatchRequest:
+      allOf:
+        - $ref: '#/components/schemas/BaseTranslationRequest'
+        - type: object
+          required:
+            - process_pending
+          properties:
+            process_pending:
+              type: boolean
+              [cite_start]description: If true, bundles all files currently marked as 'PENDING' in the DB into this job[cite: 24].
+              example: true
+
+    # -----------------------------------------------------
+    # Response Schemas
+    # -----------------------------------------------------
+    JobAcceptedResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          description: Unique ID for the newly created job.
+          example: "999"
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        message:
+          type: string
+          example: "Job successfully queued."
+
+    JobDetails:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          example: "999"
+        tag_id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        created_at:
+          type: string
+          format: date-time
+          example: "2023-10-27T10:00:00Z"
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2023-10-27T10:05:00Z"
+        credits_used:
+          type: integer
+          [cite_start]description: The final credit deduction based on character count[cite: 42].
+          nullable: true
+          example: 150
+        result:
+          type: object
+          description: The output of the translation.
+          properties:
+            file_url:
+              type: string
+              format: uri
+              [cite_start]description: Secure S3 link to the translated document (if file batch)[cite: 44].
+            text_result:
+              type: string
+              description: The translated text (if raw text mode).
+      required:
+        - job_id
+        - tag_id
+        - status
+        - created_at
+
+    # -----------------------------------------------------
+    # Shared Components
+    # -----------------------------------------------------
+    JobStatus:
+      type: string
+      description: The lifecycle state of the translation job.
+      enum:
+        - QUEUED
+        - PROCESSING
+        - COMPLETED
+        - FAILED
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total_items:
+          type: integer
+          example: 45
+        total_pages:
+          type: integer
+          example: 3
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 402
+        message:
+          type: string
+          example: "Insufficient credits to process this job."
+        details:
+          type: string
+          nullable: true
+
+security:
+  - ApiKeyAuth: []
