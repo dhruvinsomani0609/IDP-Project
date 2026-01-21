@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { FilePreviewCard } from './FilePreviewCard';
 import { DuplicateDetectionModal } from './DuplicateDetectionModal';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 import type { DuplicateAction } from './DuplicateDetectionModal';
 import {
     formatFileSize,
@@ -14,6 +15,8 @@ import {
 } from '../utils/utils';
 import type { DuplicateInfo } from '../utils/utils';
 import type { UploadState } from '../types/types';
+import { DocumentService } from '../services/documentService';
+import { supabase } from '../lib/supabase';
 
 const MAX_FILE_SIZE_MB = 10;
 const ACCEPTED_FILE_TYPES = {
@@ -34,6 +37,9 @@ export const DocumentUpload: React.FC = () => {
     const [duplicateQueue, setDuplicateQueue] = useState<DuplicateInfo[]>([]);
     const [currentDuplicate, setCurrentDuplicate] = useState<DuplicateInfo | null>(null);
     const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+    // Document preview state
+    const [previewFile, setPreviewFile] = useState<File | null>(null);
 
     // Handle file selection with duplicate detection
     const handleFileSelect = useCallback(async (selectedFiles: FileList | null) => {
@@ -181,18 +187,46 @@ export const DocumentUpload: React.FC = () => {
     const handleUpload = useCallback(async () => {
         if (files.length === 0) return;
 
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            setErrorMessage('You must be logged in to upload files');
+            return;
+        }
+
         setUploadState('uploading');
+        setErrorMessage(null);
 
-        // Simulate upload process
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+            // Upload all files to Supabase
+            const result = await DocumentService.uploadBatch(files, user.id);
 
-        setUploadState('success');
+            if (result.failedCount > 0) {
+                // Some files failed
+                const errorMessages = result.errors
+                    .map(e => `${e.fileName}: ${e.error}`)
+                    .join('\n');
+                setErrorMessage(`${result.failedCount} file(s) failed:\n${errorMessages}`);
+            }
 
-        // Clear files after successful upload
-        setTimeout(() => {
-            setFiles([]);
+            if (result.successCount > 0) {
+                // Some or all files succeeded
+                setUploadState('success');
+
+                // Clear files after successful upload
+                setTimeout(() => {
+                    setFiles([]);
+                    setUploadState('idle');
+                }, 2000);
+            } else {
+                // All files failed
+                setUploadState('idle');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            setErrorMessage('An unexpected error occurred during upload');
             setUploadState('idle');
-        }, 2000);
+        }
     }, [files]);
 
     const totalSize = calculateTotalSize(files);
@@ -327,6 +361,7 @@ export const DocumentUpload: React.FC = () => {
                                         key={`${file.name}-${file.size}-${index}`}
                                         file={file}
                                         onRemove={() => handleRemoveFile(index)}
+                                        onPreview={() => setPreviewFile(file)}
                                     />
                                 ))}
                             </AnimatePresence>
@@ -397,6 +432,14 @@ export const DocumentUpload: React.FC = () => {
                     onClose={handleDuplicateModalClose}
                     queuePosition={duplicateQueue.length - duplicateQueue.indexOf(currentDuplicate)}
                     totalDuplicates={duplicateQueue.length}
+                />
+            )}
+
+            {/* Document Preview Modal */}
+            {previewFile && (
+                <DocumentPreviewModal
+                    file={previewFile}
+                    onClose={() => setPreviewFile(null)}
                 />
             )}
         </div>

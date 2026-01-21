@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, FileText } from 'lucide-react';
+import { X, FileText, Eye } from 'lucide-react';
 import { formatFileSize, isImageFile } from '../utils/utils';
 
 interface FilePreviewCardProps {
     file: File;
     onRemove: () => void;
+    onPreview: () => void;
 }
 
-export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove }) => {
+export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove, onPreview }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [isHovered, setIsHovered] = useState(false);
 
@@ -30,6 +31,11 @@ export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove
         return `${truncated}...${extension}`;
     };
 
+    const handleRemove = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onRemove();
+    };
+
     return (
         <motion.div
             layout
@@ -39,14 +45,15 @@ export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove
             whileHover={{ scale: 1.02 }}
             onHoverStart={() => setIsHovered(true)}
             onHoverEnd={() => setIsHovered(false)}
+            onClick={onPreview}
             className={`
-        relative rounded-lg overflow-hidden border-2 transition-all duration-200
+        relative rounded-lg overflow-hidden border-2 transition-all duration-200 cursor-pointer
         ${isHovered ? 'border-indigo-600 shadow-md' : 'border-slate-200 shadow-sm'}
-        bg-white
+        bg-white group
       `}
         >
             {/* Preview Area */}
-            <div className="aspect-square bg-slate-100 flex items-center justify-center">
+            <div className="aspect-square bg-slate-100 flex items-center justify-center relative">
                 {preview ? (
                     <img
                         src={preview}
@@ -56,6 +63,11 @@ export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove
                 ) : (
                     <FileText className="w-12 h-12 text-slate-400" />
                 )}
+
+                {/* Preview Overlay */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Eye className="w-8 h-8 text-white" />
+                </div>
             </div>
 
             {/* File Info */}
@@ -72,12 +84,12 @@ export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove
             <motion.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: isHovered ? 1 : 0 }}
-                onClick={onRemove}
+                onClick={handleRemove}
                 className="
           absolute top-2 right-2 
           bg-red-500 hover:bg-red-600 
           text-white rounded-full p-1.5
-          shadow-lg transition-colors
+          shadow-lg transition-colors z-10
           focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2
         "
                 aria-label="Remove file"
@@ -87,3 +99,4 @@ export const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove
         </motion.div>
     );
 };
+
