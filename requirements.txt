@@ -1,5 +1,0 @@
-streamlit
-openai
-python-dotenv
-Pillow
-google-generativeai #for Gemini API integration
