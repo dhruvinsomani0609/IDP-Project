@@ -100,10 +100,6 @@ CREATE POLICY "Users can delete own documents"
     FOR DELETE
     USING (auth.uid() = user_id);
 
--- 7. Create storage bucket (Run this in Supabase Storage section)
--- Note: This is a SQL representation, actual bucket creation is done via Supabase Dashboard or API
--- INSERT INTO storage.buckets (id, name, public)
--- VALUES ('documents', 'documents', false);
 
 -- 8. Create storage policies for the documents bucket
 -- Policy: Users can upload to their own folder
@@ -226,28 +222,3 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Check RLS policies
 -- SELECT * FROM pg_policies WHERE tablename = 'documents';
-
--- ============================================
--- SAMPLE DATA (Optional - for testing)
--- ============================================
-
--- Insert sample document (replace with actual user_id from auth.users)
--- INSERT INTO public.documents (
---     user_id,
---     file_name,
---     file_size,
---     file_type,
---     file_extension,
---     storage_path,
---     batch_id,
---     upload_status
--- ) VALUES (
---     'your-user-id-here',
---     'sample-document.pdf',
---     1024000,
---     'application/pdf',
---     '.pdf',
---     'user-id/batch-id/sample-document.pdf',
---     gen_random_uuid(),
---     'completed'
--- );

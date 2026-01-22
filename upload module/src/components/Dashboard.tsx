@@ -1,10 +1,15 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, Upload, Tag } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentUpload } from './DocumentUpload';
+import { TagDashboard } from './TagDashboard';
+
+type TabType = 'documents' | 'tags';
 
 export const Dashboard: React.FC = () => {
     const { user, signOut } = useAuth();
+    const [activeTab, setActiveTab] = useState<TabType>('documents');
 
     const handleSignOut = async () => {
         await signOut();
@@ -60,7 +65,50 @@ export const Dashboard: React.FC = () => {
                         </p>
                     </div>
 
-                    <DocumentUpload />
+                    {/* Tab Navigation */}
+                    <div className="max-w-6xl mx-auto mb-6">
+                        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 inline-flex gap-2">
+                            <button
+                                onClick={() => setActiveTab('documents')}
+                                className={`
+                                    flex items-center gap-2 px-6 py-3 rounded-lg font-medium
+                                    transition-all duration-200
+                                    ${activeTab === 'documents'
+                                        ? 'bg-white text-indigo-600 shadow-lg'
+                                        : 'text-white hover:bg-white/20'
+                                    }
+                                `}
+                            >
+                                <Upload className="w-5 h-5" />
+                                Documents
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('tags')}
+                                className={`
+                                    flex items-center gap-2 px-6 py-3 rounded-lg font-medium
+                                    transition-all duration-200
+                                    ${activeTab === 'tags'
+                                        ? 'bg-white text-indigo-600 shadow-lg'
+                                        : 'text-white hover:bg-white/20'
+                                    }
+                                `}
+                            >
+                                <Tag className="w-5 h-5" />
+                                Tags
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tab Content */}
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {activeTab === 'documents' ? <DocumentUpload /> : <TagDashboard />}
+                    </motion.div>
                 </div>
             </div>
         </div>

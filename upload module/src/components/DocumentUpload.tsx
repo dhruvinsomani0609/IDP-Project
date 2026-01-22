@@ -4,6 +4,7 @@ import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { FilePreviewCard } from './FilePreviewCard';
 import { DuplicateDetectionModal } from './DuplicateDetectionModal';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { TagCreationModal } from './TagCreationModal';
 import type { DuplicateAction } from './DuplicateDetectionModal';
 import {
     formatFileSize,
@@ -17,6 +18,7 @@ import type { DuplicateInfo } from '../utils/utils';
 import type { UploadState } from '../types/types';
 import { DocumentService } from '../services/documentService';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const MAX_FILE_SIZE_MB = 10;
 const ACCEPTED_FILE_TYPES = {
@@ -27,6 +29,7 @@ const ACCEPTED_FILE_TYPES = {
 };
 
 export const DocumentUpload: React.FC = () => {
+    const { user } = useAuth();
     const [files, setFiles] = useState<File[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [uploadState, setUploadState] = useState<UploadState>('idle');
@@ -40,6 +43,10 @@ export const DocumentUpload: React.FC = () => {
 
     // Document preview state
     const [previewFile, setPreviewFile] = useState<File | null>(null);
+
+    // Tag creation state
+    const [showTagCreation, setShowTagCreation] = useState(false);
+    const [uploadedDocumentIds, setUploadedDocumentIds] = useState<string[]>([]);
 
     // Handle file selection with duplicate detection
     const handleFileSelect = useCallback(async (selectedFiles: FileList | null) => {
@@ -213,11 +220,14 @@ export const DocumentUpload: React.FC = () => {
                 // Some or all files succeeded
                 setUploadState('success');
 
-                // Clear files after successful upload
+                // Store uploaded document IDs for tag creation
+                const documentIds = result.documents.map(doc => doc.id);
+                setUploadedDocumentIds(documentIds);
+
+                // Show tag creation modal after a brief delay
                 setTimeout(() => {
-                    setFiles([]);
-                    setUploadState('idle');
-                }, 2000);
+                    setShowTagCreation(true);
+                }, 1000);
             } else {
                 // All files failed
                 setUploadState('idle');
@@ -228,6 +238,23 @@ export const DocumentUpload: React.FC = () => {
             setUploadState('idle');
         }
     }, [files]);
+
+    // Handle tag creation completion
+    const handleTagCreationComplete = useCallback(() => {
+        setShowTagCreation(false);
+        setUploadedDocumentIds([]);
+        setFiles([]);
+        setUploadState('idle');
+    }, []);
+
+    // Handle tag creation cancel
+    const handleTagCreationCancel = useCallback(() => {
+        setShowTagCreation(false);
+        setUploadedDocumentIds([]);
+        // Restart upload process
+        setFiles([]);
+        setUploadState('idle');
+    }, []);
 
     const totalSize = calculateTotalSize(files);
 
@@ -440,6 +467,17 @@ export const DocumentUpload: React.FC = () => {
                 <DocumentPreviewModal
                     file={previewFile}
                     onClose={() => setPreviewFile(null)}
+                />
+            )}
+
+            {/* Tag Creation Modal */}
+            {showTagCreation && user && (
+                <TagCreationModal
+                    isOpen={showTagCreation}
+                    uploadedDocumentIds={uploadedDocumentIds}
+                    userId={user.id}
+                    onClose={handleTagCreationCancel}
+                    onComplete={handleTagCreationComplete}
                 />
             )}
         </div>

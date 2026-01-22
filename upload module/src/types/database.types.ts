@@ -79,6 +79,67 @@ export interface Database {
                     is_deleted?: boolean;
                 };
             };
+            tags: {
+                Row: {
+                    id: string;
+                    user_id: string;
+                    name: string;
+                    description: string | null;
+                    industry: string | null;
+                    schema_json: Record<string, any> | null;
+                    sample_document_id: string | null;
+                    created_at: string;
+                    updated_at: string;
+                    is_deleted: boolean;
+                };
+                Insert: {
+                    id?: string;
+                    user_id: string;
+                    name: string;
+                    description?: string | null;
+                    industry?: string | null;
+                    schema_json?: Record<string, any> | null;
+                    sample_document_id?: string | null;
+                    created_at?: string;
+                    updated_at?: string;
+                    is_deleted?: boolean;
+                };
+                Update: {
+                    id?: string;
+                    user_id?: string;
+                    name?: string;
+                    description?: string | null;
+                    industry?: string | null;
+                    schema_json?: Record<string, any> | null;
+                    sample_document_id?: string | null;
+                    created_at?: string;
+                    updated_at?: string;
+                    is_deleted?: boolean;
+                };
+            };
+            tag_documents: {
+                Row: {
+                    id: string;
+                    tag_id: string;
+                    document_id: string;
+                    extracted_data: Record<string, any> | null;
+                    created_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    tag_id: string;
+                    document_id: string;
+                    extracted_data?: Record<string, any> | null;
+                    created_at?: string;
+                };
+                Update: {
+                    id?: string;
+                    tag_id?: string;
+                    document_id?: string;
+                    extracted_data?: Record<string, any> | null;
+                    created_at?: string;
+                };
+            };
         };
         Functions: {
             get_user_documents: {
@@ -121,6 +182,14 @@ export interface Database {
 export type Document = Database['public']['Tables']['documents']['Row'];
 export type DocumentInsert = Database['public']['Tables']['documents']['Insert'];
 export type DocumentUpdate = Database['public']['Tables']['documents']['Update'];
+
+export type Tag = Database['public']['Tables']['tags']['Row'];
+export type TagInsert = Database['public']['Tables']['tags']['Insert'];
+export type TagUpdate = Database['public']['Tables']['tags']['Update'];
+
+export type TagDocument = Database['public']['Tables']['tag_documents']['Row'];
+export type TagDocumentInsert = Database['public']['Tables']['tag_documents']['Insert'];
+export type TagDocumentUpdate = Database['public']['Tables']['tag_documents']['Update'];
 
 // Upload status types
 export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
